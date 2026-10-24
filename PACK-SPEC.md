@@ -61,8 +61,9 @@ window.QUESTION_PACKS.push({
 ## 四、三步接入流程
 
 ```bash
-# 1. 照上面的格式写草稿(纯 JSON 文件,或直接写 JS 包文件)
+# 1. 照上面的格式写草稿(纯 JSON 文件)
 # 2. 校验并生成正式包(推荐,会报出所有问题):
+#    在 kids-ai-lab 根目录运行(tools 在那里):
 python3 tools/pack_builder.py 我的草稿.json
 #    → 生成 dynasty-quest/packs/<id>-pack.js + 打印统计报告
 

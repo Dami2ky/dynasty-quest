@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>穿越朝代大冒险 · 历史地理闯关</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏺</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 声音开关(常驻右上角) -->
+<button id="sound-toggle" class="sound-toggle" title="声音开/关">🔊</button>
+
+<!-- ════════ 屏幕 1:标题 ════════ -->
+<section id="screen-title" class="screen active">
+  <div class="sky">
+    <div class="star s1">✦</div><div class="star s2">✧</div><div class="star s3">✦</div>
+    <div class="star s4">✧</div><div class="star s5">✦</div><div class="star s6">✧</div>
+    <div class="cloud c1">☁️</div>
+    <div class="cloud c2">☁️</div>
+    <div class="lantern l1">🏮</div>
+    <div class="lantern l2">🏮</div>
+    <div class="lantern l3">🏮</div>
+  </div>
+
+  <svg class="mountains" viewBox="0 0 1200 320" preserveAspectRatio="none">
+    <path d="M0,320 L0,200 Q150,90 300,190 Q420,260 560,150 Q700,40 860,180 Q1000,280 1200,170 L1200,320 Z" fill="#3a2b52" opacity="0.85"/>
+    <path d="M0,320 L0,250 Q200,160 400,240 Q600,320 800,210 Q1000,110 1200,230 L1200,320 Z" fill="#241a38"/>
+    <path d="M0,320 L0,290 Q300,230 600,285 Q900,335 1200,270 L1200,320 Z" fill="#140e22"/>
+  </svg>
+
+  <div class="title-wrap">
+    <div class="game-title">穿越朝代<span class="title-accent">大冒险</span></div>
+    <div class="game-sub">夏商周 · 秦汉唐宋 · 明清 —— 历史 × 地理 闯关</div>
+    <div class="menu">
+      <button id="btn-single" class="btn btn-gold btn-big">🏔️ 单人闯关</button>
+      <button id="btn-versus" class="btn btn-red btn-big">⚔️ 双人对战</button>
+      <button id="btn-help" class="btn btn-plain">❓ 怎么玩</button>
+    </div>
+    <div class="dedication">— 为 诺一 &amp; 艺家 特别打造 —</div>
+  </div>
+
+  <div id="help-panel" class="help-panel hidden">
+    <h3>怎么玩</h3>
+    <p>🏔️ <b>单人闯关</b>:选一位探险家,沿时间轴从夏商周一路穿越到明清。每个朝代答 3 道题,限时 20 秒,答错扣 1 颗心,3 颗心用完就要重来。通关收集「传世宝物」,剩下越多心,星星越多!</p>
+    <p>⚔️ <b>双人对战</b>:诺一和艺家轮流答题(每人 3 题),答对得 10 分,答得越快加分越多,比比谁是历史小达人!</p>
+    <p>🌱 是小学级题目,🌟 是进阶题。答完每道题都有一个「你知道吗?」小知识。</p>
+    <button id="btn-help-close" class="btn btn-plain">知道了</button>
+  </div>
+</section>
+
+<!-- ════════ 屏幕 2:选人 ════════ -->
+<section id="screen-chars" class="screen">
+  <h2 id="chars-title" class="screen-title">选择你的探险家</h2>
+  <p class="screen-hint" id="chars-hint">点名字可以改名哦</p>
+  <div class="chars-row">
+    <div class="char-card char-p1" id="card-p1">
+      <div class="char-avatar">🥷</div>
+      <input class="char-name" id="p1-name" value="诺一" maxlength="6" title="点我改名">
+      <div class="char-title">少年侠客</div>
+      <div class="char-desc">读过《上下五千年》<br>善破历史谜题</div>
+    </div>
+    <div class="vs-badge hidden" id="vs-badge">VS</div>
+    <div class="char-card char-p2" id="card-p2">
+      <div class="char-avatar">🎶</div>
+      <input class="char-name" id="p2-name" value="艺家" maxlength="6" title="点我改名">
+      <div class="char-title">乐府才女</div>
+      <div class="char-desc">能歌善舞小百灵<br>地理小达人</div>
+    </div>
+  </div>
+  <div class="chars-actions">
+    <button id="btn-start-versus" class="btn btn-red hidden">⚔️ 开始对战</button>
+    <button class="btn btn-plain btn-back" data-back="screen-title">← 返回</button>
+  </div>
+</section>
+
+<!-- ════════ 屏幕 3:朝代地图 ════════ -->
+<section id="screen-map" class="screen">
+  <div class="map-header">
+    <div class="map-player"><span id="map-avatar">🥷</span><b id="map-name">诺一</b></div>
+    <h2 class="screen-title">朝代时空之路</h2>
+    <div class="treasure-strip" id="treasure-strip"></div>
+  </div>
+  <div class="map-wrap">
+    <div class="map-scroll">
+      <div class="map-track" id="map-track"></div>
+    </div>
+    <div class="scroll-hint" id="scroll-hint">➡️</div>
+  </div>
+  <div class="map-footer">
+    <div class="map-tip">左右滑动时间轴,点亮所有朝代,集齐 8 件传世宝物!</div>
+    <button class="btn btn-plain btn-back" data-back="screen-title">🏠 主页</button>
+  </div>
+</section>
+
+<!-- ════════ 屏幕 4:答题 ════════ -->
+<section id="screen-quiz" class="screen">
+  <div class="quiz-top">
+    <div class="dyn-badge" id="dyn-badge"></div>
+    <div class="hearts" id="hearts">❤️❤️❤️</div>
+    <div class="q-count" id="q-count">1 / 3</div>
+  </div>
+
+  <div class="versus-bar hidden" id="versus-bar">
+    <div class="vs-player" id="vs-p1"><span class="vs-ava">🥷</span><span class="vs-nm">诺一</span><b class="vs-score">0</b></div>
+    <div class="vs-turn" id="vs-turn"></div>
+    <div class="vs-player" id="vs-p2"><b class="vs-score">0</b><span class="vs-nm">艺家</span><span class="vs-ava">🎶</span></div>
+  </div>
+
+  <div class="timer-track"><div class="timer-bar" id="timer-bar"></div></div>
+
+  <div class="q-card">
+    <div class="q-meta"><span class="q-level" id="q-level">🌱 小学</span></div>
+    <div class="q-text" id="q-text">正在打开时空之门…</div>
+    <div class="options" id="options"></div>
+  </div>
+</section>
+
+<!-- 答题层内的弹层:关卡开场 / 答题反馈 / 通关 / 失败 -->
+<div id="overlay" class="overlay hidden">
+  <div class="overlay-card" id="overlay-card"></div>
+</div>
+
+<!-- ════════ 屏幕 5:双人对战结算 ════════ -->
+<section id="screen-versus-result" class="screen">
+  <div class="final-card">
+    <div class="final-emoji" id="vr-emoji">🏆</div>
+    <h2 class="screen-title" id="vr-title">诺一 获胜!</h2>
+    <div class="vr-scores" id="vr-scores"></div>
+    <div class="vr-history" id="vr-history"></div>
+    <div class="chars-actions">
+      <button id="btn-vr-again" class="btn btn-red">⚔️ 再来一局</button>
+      <button class="btn btn-plain btn-back" data-back="screen-title">🏠 主页</button>
+    </div>
+  </div>
+</section>
+
+<!-- ════════ 屏幕 6:全通关结局 ════════ -->
+<section id="screen-final" class="screen">
+  <div class="final-card">
+    <div class="final-emoji">👑</div>
+    <h2 class="screen-title">时空探险大师!</h2>
+    <p class="final-text">你集齐了 8 件传世宝物,<br>从夏商周一路穿越到了明清!</p>
+    <div class="final-treasures" id="final-treasures"></div>
+    <div class="chars-actions">
+      <button class="btn btn-gold btn-back" data-back="screen-map">🗺️ 回地图看看</button>
+    </div>
+  </div>
+</section>
+
+<!-- 撒花层 -->
+<div id="confetti-layer"></div>
+
+<script src="questions.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

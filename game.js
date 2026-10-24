@@ -35,6 +35,12 @@ function load(key, def) {
   try { return JSON.parse(localStorage.getItem(key)) || def; } catch (e) { return def; }
 }
 
+/* ════════ 题库包(外挂题库,规范见 PACK-SPEC.md) ════════
+   核心题库(questions.js)+ 所有已挂载的包合并成总题池;
+   想加新知识:生成包文件放进 packs/,index.html 加一行 script 即可 */
+const PACKS = window.QUESTION_PACKS || [];
+const ALL_QUESTIONS = QUESTIONS.concat(...PACKS.map(p => p.questions));
+
 /* ════════ 音效引擎(Web Audio,零音频文件) ════════ */
 const Sound = {
   ctx: null,
@@ -250,6 +256,12 @@ function renderMap() {
     `<div class="slot ${progress.stars[d.name] > 0 ? "got" : ""}" title="${d.treasure}">${progress.stars[d.name] > 0 ? d.emoji : "·"}</div>`
   ).join("");
 
+  // 题库包角标:让孩子看得见「游戏在变厚」
+  const icons = PACKS.map(p => p.icon).join(" ");
+  $("#pack-badge").innerHTML = PACKS.length
+    ? `📦 弹药 <b>${ALL_QUESTIONS.length}</b> 题 ${icons}`
+    : `📦 题库 <b>${ALL_QUESTIONS.length}</b> 题`;
+
   // 滚动到当前节点 + 滑动提示箭头
   const scroller = $(".map-scroll");
   const hint = $("#scroll-hint");
@@ -269,7 +281,7 @@ function renderMap() {
 let timer = null;
 
 function pickQuestions(dynastyName, count) {
-  const pool = shuffle(QUESTIONS.filter(q => q.dynasty === dynastyName));
+  const pool = shuffle(ALL_QUESTIONS.filter(q => q.dynasty === dynastyName));
   return pool.slice(0, count);
 }
 
@@ -526,8 +538,8 @@ function showFinal() {
 
 /* ════════ 双人对战 ════════ */
 function startVersus() {
-  const easy = shuffle(QUESTIONS.filter(q => q.level === 1)).slice(0, 3);
-  const hard = shuffle(QUESTIONS.filter(q => q.level === 2)).slice(0, 3);
+  const easy = shuffle(ALL_QUESTIONS.filter(q => q.level === 1)).slice(0, 3);
+  const hard = shuffle(ALL_QUESTIONS.filter(q => q.level === 2)).slice(0, 3);
   const qs = shuffle([...easy, ...hard]);
 
   quiz = {

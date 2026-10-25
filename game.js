@@ -132,7 +132,8 @@ if (!roster || !roster.length) {
 let currentPid = load("dq_current", roster[0].id);
 if (!roster.some(p => p.id === currentPid)) currentPid = roster[0].id;
 
-const records = load("dq_records", []);   // [{p, ava, ym(YYYY-MM), kind, label, stars}]
+const records = load("dq_records", []);  
+const removedPlayers = new Set(load("dq_removed", []));   // 已删除玩家墓碑(防同步复活)   // [{p, ava, ym(YYYY-MM), kind, label, stars}]
 
 function me() { return roster.find(p => p.id === currentPid) || roster[0]; }
 function nowYM() {
@@ -705,7 +706,9 @@ function renderRoster() {
         roster = roster.filter(x => x.id !== p.id);
         if (currentPid === p.id) { currentPid = roster[0].id; save("dq_current", currentPid); }
         save("dq_roster", roster);
-        CloudSync.schedulePush();   // 删人即同步
+        removedPlayers.add(p.name);
+        save("dq_removed", [...removedPlayers]);
+        CloudSync.schedulePush();   // 删人即同步(墓碑防复活)
         closeOverlay();
         renderRoster();
       });
@@ -734,6 +737,8 @@ $("#btn-add-player").addEventListener("click", () => {
   if (roster.some(p => p.name === name)) { Sound.wrong(); $("#new-player-name").value = ""; return; }
   Sound.correct();
   roster.push({ id: Date.now(), name, avatar: pickedAvatar });
+  removedPlayers.delete(name);
+  save("dq_removed", [...removedPlayers]);
   save("dq_roster", roster);
   CloudSync.schedulePush();   // 加人即上传,其他设备可见
   $("#new-player-name").value = "";
@@ -790,12 +795,16 @@ CloudSync.init({
   game: "dynasty",
   collect: () => ({
     roster,
+    removed: [...removedPlayers],
     records,
     progress,
     versus: versusRec,
   }),
   apply: s => {
-    roster = s.roster || roster;
+    removedPlayers.clear();
+    (s.removed || []).forEach(x => removedPlayers.add(x));
+    save("dq_removed", [...removedPlayers]);
+    roster = (s.roster || roster).filter(x => !removedPlayers.has(x.name));
     save("dq_roster", roster);
     records.length = 0; records.push(...(s.records || [])); save("dq_records", records);
     Object.keys(progress).forEach(k => delete progress[k]);

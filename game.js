@@ -119,6 +119,7 @@ let quiz = null;              // 当前对局状态
 function showScreen(id) {
   $$(".screen").forEach(s => s.classList.remove("active"));
   $("#" + id).classList.add("active");
+  if (id === "screen-title") CloudSync.pull();   // 回主页时拉取家人最新数据
 }
 
 function openOverlay(html) {
@@ -486,6 +487,7 @@ function completeLevel() {
   progress.stars[d.name] = Math.max(progress.stars[d.name] || 0, stars);
   if (quiz.dynIdx === progress.unlocked) progress.unlocked = Math.min(DYNASTIES.length - 1, quiz.dynIdx + 1);
   save("dq_progress", progress);
+  CloudSync.schedulePush();   // 云同步:通关进度上传
 
   Sound.fanfare();
   confetti(46);
@@ -571,6 +573,7 @@ function endVersus() {
 
   if (winner) versusRec[winner === p1 ? "p1" : "p2"]++;
   save("dq_versus", versusRec);
+  CloudSync.schedulePush();   // 云同步:对战战绩上传
 
   $("#vr-emoji").textContent = winner ? "🏆" : "🤝";
   $("#vr-title").textContent = winner ? `${winner.name} 获胜!` : "平局,势均力敌!";
@@ -604,3 +607,20 @@ document.addEventListener("pointerdown", function once() {
 });
 
 $("#sound-toggle").textContent = Sound.enabled ? "🔊" : "🔇";
+
+/* ════════ 云同步初始化(家庭数据集:闯关进度/对战战绩) ════════ */
+CloudSync.init({
+  game: "dynasty",
+  collect: () => ({ progress, versus: versusRec }),
+  apply: s => {
+    Object.keys(progress).forEach(k => delete progress[k]);
+    Object.assign(progress, s.progress || {});
+    save("dq_progress", progress);
+    Object.keys(versusRec).forEach(k => delete versusRec[k]);
+    Object.assign(versusRec, s.versus || {});
+    save("dq_versus", versusRec);
+  },
+  render: () => {
+    if (document.getElementById("screen-map").classList.contains("active")) renderMap();
+  },
+});

@@ -70,7 +70,7 @@
   function mergePayload(cloudState, localPayload) {
     const rules = cfg.game === "poem"
       ? { roster: merge.roster, records: merge.records, best: merge.nestedMax, themes: merge.nestedMax, unlocked: merge.union, versus: merge.byMax }
-      : { progress: merge.nestedMax, versus: merge.byMax };
+      : { roster: merge.roster, records: merge.records, progress: merge.nestedMax, versus: merge.byMax };
     const out = {};
     for (const key in rules) out[key] = rules[key](cloudState && cloudState[key], localPayload[key]);
     return out;

@@ -107,12 +107,46 @@ const Sound = {
 
 /* ════════ 存档 ════════ */
 const progress = load("dq_progress", { unlocked: 0, stars: {} }); // stars: {朝代名: 星数}
-const versusRec = load("dq_versus", { p1: 0, p2: 0 });            // 对战获胜场次
+const versusRec = load("dq_versus", { p1: 0, p2: 0 });
 const savedNames = load("dq_names", { p1: "诺一", p2: "艺家" });
+
+/* ════════ v1.4:家庭玩家花名册 / 成绩记录 ════════ */
+const AVATARS = ["🥷", "🎶", "👑", "🐉", "🦊", "🐼", "🦉", "🐯", "🧚", "🤴", "👸", "🐶", "🐰", "🐧"];
+
+let roster = load("dq_roster", null);
+if (!roster || !roster.length) {
+  roster = [
+    { id: 1, name: savedNames.p1 || "诺一", avatar: "🥷" },
+    { id: 2, name: savedNames.p2 || "艺家", avatar: "🎶" },
+  ];
+  save("dq_roster", roster);
+  if (versusRec.p1 !== undefined) {   // 旧 p1/p2 键战绩迁移到名字键
+    const vr = {};
+    vr[roster[0].name] = versusRec.p1 || 0;
+    vr[roster[1].name] = versusRec.p2 || 0;
+    save("dq_versus", vr);
+    Object.keys(versusRec).forEach(k => delete versusRec[k]);
+    Object.assign(versusRec, vr);
+  }
+}
+let currentPid = load("dq_current", roster[0].id);
+if (!roster.some(p => p.id === currentPid)) currentPid = roster[0].id;
+
+const records = load("dq_records", []);   // [{p, ava, ym(YYYY-MM), kind, label, stars}]
+
+function me() { return roster.find(p => p.id === currentPid) || roster[0]; }
+function nowYM() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function addRecord(kind, label, stars) {
+  records.unshift({ p: me().name, ava: me().avatar, ym: nowYM(), kind, label, stars: stars || null });
+  if (records.length > 200) records.length = 200;
+  save("dq_records", records);
+}
 
 /* ════════ 运行状态 ════════ */
 let mode = "single";          // single | versus
-let chosenChar = "p1";        // 单人模式选的角色
 let quiz = null;              // 当前对局状态
 
 /* ════════ 屏幕切换 ════════ */
@@ -150,25 +184,26 @@ function confetti(n = 30) {
 $("#btn-single").addEventListener("click", () => {
   Sound.click(); Sound.startBGM();
   mode = "single";
-  $("#chars-title").textContent = "选择你的探险家";
-  $("#chars-hint").textContent = "点名字可以改名哦 · 点卡片出发";
-  $("#card-p1").classList.remove("chosen-p2");
-  $("#card-p2").classList.remove("chosen-p2");
-  $("#vs-badge").classList.add("hidden");
-  $("#btn-start-versus").classList.add("hidden");
-  showScreen("screen-chars");
+  startMap();   // v1.4:以当前玩家直接进地图
 });
 
 $("#btn-versus").addEventListener("click", () => {
   Sound.click(); Sound.startBGM();
   mode = "versus";
-  $("#chars-title").textContent = "双人对战 · 阵容确认";
-  $("#chars-hint").textContent = "点名字可以改名,改好就开战!";
-  $("#card-p1").classList.add("chosen-p1");
-  $("#card-p2").classList.add("chosen-p2");
-  $("#vs-badge").classList.remove("hidden");
-  $("#btn-start-versus").classList.remove("hidden");
+  renderVsPickers();
   showScreen("screen-chars");
+});
+
+$("#btn-honor").addEventListener("click", () => {
+  Sound.click();
+  renderHonor();
+  showScreen("screen-honor");
+});
+
+$("#player-chip").addEventListener("click", () => {
+  Sound.click();
+  renderRoster();
+  showScreen("screen-player");
 });
 
 $("#btn-help").addEventListener("click", () => { Sound.click(); $("#help-panel").classList.remove("hidden"); });
@@ -176,32 +211,40 @@ $("#btn-help-close").addEventListener("click", () => { Sound.click(); $("#help-p
 
 $("#sound-toggle").addEventListener("click", () => Sound.toggle());
 
-/* ════════ 选人屏 ════════ */
-$("#p1-name").value = savedNames.p1 || "诺一";
-$("#p2-name").value = savedNames.p2 || "艺家";
+/* ════════ 对战选人屏(v1.4:花名册选人) ════════ */
+let vsSel = { p1: null, p2: null };
 
-function currentName(p) { return ($("#" + p + "-name").value.trim() || (p === "p1" ? "诺一" : "艺家")).slice(0, 6); }
-function saveNames() {
-  savedNames.p1 = currentName("p1");
-  savedNames.p2 = currentName("p2");
-  save("dq_names", savedNames);
+function renderVsPickers() {
+  if (vsSel.p1 === null || !roster.some(p => p.id === vsSel.p1)) vsSel.p1 = currentPid;
+  const other = roster.find(p => p.id !== vsSel.p1);
+  if (vsSel.p2 === null || !roster.some(p => p.id === vsSel.p2) || vsSel.p2 === vsSel.p1) {
+    vsSel.p2 = other ? other.id : vsSel.p1;
+  }
+  ["p1", "p2"].forEach(side => {
+    const box = $("#roster-vs-" + side);
+    box.innerHTML = "";
+    roster.forEach(p => {
+      const chip = document.createElement("button");
+      chip.className = "rm-chip" + (vsSel[side] === p.id ? ` sel-${side}` : "");
+      chip.textContent = `${p.avatar} ${p.name}`;
+      chip.addEventListener("click", () => {
+        Sound.click();
+        vsSel[side] = p.id;
+        if (vsSel.p1 === vsSel.p2) {
+          const alt = roster.find(x => x.id !== p.id);
+          if (alt) vsSel[side === "p1" ? "p2" : "p1"] = alt.id;
+        }
+        renderVsPickers();
+      });
+      box.appendChild(chip);
+    });
+    const sel = roster.find(p => p.id === vsSel[side]);
+    $("#vs-label-" + side).textContent = `${sel.avatar} ${side === "p1" ? "甲方" : "乙方"}`;
+  });
 }
-
-$("#card-p1").addEventListener("click", e => {
-  if (e.target.classList.contains("char-name")) return;
-  Sound.click();
-  if (mode === "single") { chosenChar = "p1"; startMap(); }
-});
-$("#card-p2").addEventListener("click", e => {
-  if (e.target.classList.contains("char-name")) return;
-  Sound.click();
-  if (mode === "single") { chosenChar = "p2"; startMap(); }
-});
-$$(".char-name").forEach(inp => inp.addEventListener("change", saveNames));
 
 $("#btn-start-versus").addEventListener("click", () => {
   Sound.click();
-  saveNames();
   startVersus();
 });
 
@@ -216,10 +259,9 @@ $$(".btn-back").forEach(btn =>
 
 /* ════════ 地图屏 ════════ */
 function startMap() {
-  saveNames();
-  const p = chosenChar;
-  $("#map-avatar").textContent = p === "p1" ? "🥷" : "🎶";
-  $("#map-name").textContent = currentName(p);
+  const p = me();
+  $("#map-avatar").textContent = p.avatar;
+  $("#map-name").textContent = p.name;
   renderMap();
   showScreen("screen-map");
 }
@@ -369,8 +411,8 @@ function renderVersusBar() {
   $("#vs-p2").classList.toggle("active", p === "p2");
   $("#vs-p1 .vs-nm").textContent = quiz.p1.name;
   $("#vs-p2 .vs-nm").textContent = quiz.p2.name;
-  $("#vs-p1 .vs-ava").textContent = "🥷";
-  $("#vs-p2 .vs-ava").textContent = "🎶";
+  $("#vs-p1 .vs-ava").textContent = quiz.p1.avatar;
+  $("#vs-p2 .vs-ava").textContent = quiz.p2.avatar;
   $("#vs-p1 .vs-score").textContent = quiz.p1.score;
   $("#vs-p2 .vs-score").textContent = quiz.p2.score;
   $("#vs-turn").textContent = `轮到 ${quiz[p].name} 了`;
@@ -414,7 +456,7 @@ function answer(btn, correct, timeout = false) {
     Sound.correct();
     confetti(14);
     if (quiz.kind === "versus") {
-      pts = 10 + Math.ceil(quiz.timeLeft / 4); // 答对 10 分 + 速度加分(最多 5)
+      pts = 10 + Math.ceil((Number.isFinite(quiz.timeLeft) ? quiz.timeLeft : 0) / 4); // 答对 10 分 + 速度加分(最多 5);防御 timeLeft 未初始化
       quiz[quiz.turn].score += pts;
       renderVersusBar();
     }
@@ -487,6 +529,7 @@ function completeLevel() {
   progress.stars[d.name] = Math.max(progress.stars[d.name] || 0, stars);
   if (quiz.dynIdx === progress.unlocked) progress.unlocked = Math.min(DYNASTIES.length - 1, quiz.dynIdx + 1);
   save("dq_progress", progress);
+  addRecord("level", `${d.name} 通关`, stars);
   CloudSync.schedulePush();   // 云同步:通关进度上传
 
   Sound.fanfare();
@@ -533,6 +576,7 @@ function failLevel() {
 /* ── 全通关结局 ── */
 function showFinal() {
   $("#final-treasures").innerHTML = DYNASTIES.map(d => `<span>${d.emoji}</span>`).join("");
+  addRecord("final", "八朝代全通关 · 时空探险大师", 3);
   showScreen("screen-final");
   Sound.fanfare();
   setTimeout(() => confetti(60), 300);
@@ -540,6 +584,8 @@ function showFinal() {
 
 /* ════════ 双人对战 ════════ */
 function startVersus() {
+  const P1 = roster.find(p => p.id === vsSel.p1) || roster[0];
+  const P2 = roster.find(p => p.id === vsSel.p2) || roster[1] || roster[0];
   const easy = shuffle(ALL_QUESTIONS.filter(q => q.level === 1)).slice(0, 3);
   const hard = shuffle(ALL_QUESTIONS.filter(q => q.level === 2)).slice(0, 3);
   const qs = shuffle([...easy, ...hard]);
@@ -550,8 +596,8 @@ function startVersus() {
     qIdx: 0,
     turn: "p1",
     dynIdx: 0,
-    p1: { name: currentName("p1"), score: 0 },
-    p2: { name: currentName("p2"), score: 0 },
+    p1: { name: P1.name, avatar: P1.avatar, score: 0 },
+    p2: { name: P2.name, avatar: P2.avatar, score: 0 },
     locked: false
   };
 
@@ -571,8 +617,19 @@ function endVersus() {
   const { p1, p2 } = quiz;
   const winner = p1.score === p2.score ? null : (p1.score > p2.score ? p1 : p2);
 
-  if (winner) versusRec[winner === p1 ? "p1" : "p2"]++;
+  if (winner) versusRec[winner.name] = (versusRec[winner.name] || 0) + 1;
   save("dq_versus", versusRec);
+
+  // 成绩记录记在胜者名下(临时切换当前玩家身份)
+  if (winner) {
+    const winnerPid = roster.find(p => p.name === winner.name)?.id;
+    if (winnerPid !== undefined && winnerPid !== null) {
+      const prev = currentPid;
+      currentPid = winnerPid;
+      addRecord("versus", `对战 ${p1.name} ${p1.score} : ${p2.score} ${p2.name}`, null);
+      currentPid = prev;
+    }
+  }
   CloudSync.schedulePush();   // 云同步:对战战绩上传
 
   $("#vr-emoji").textContent = winner ? "🏆" : "🤝";
@@ -581,22 +638,135 @@ function endVersus() {
 
   $("#vr-scores").innerHTML = `
     <div class="vr-player">
-      <div class="vr-ava">🥷</div>
+      <div class="vr-ava">${p1.avatar}</div>
       <div class="vr-name">${p1.name}</div>
       <div class="vr-pts">${p1.score}</div>
     </div>
     <div class="vr-vs">VS</div>
     <div class="vr-player">
-      <div class="vr-ava">🎶</div>
+      <div class="vr-ava">${p2.avatar}</div>
       <div class="vr-name">${p2.name}</div>
       <div class="vr-pts">${p2.score}</div>
     </div>`;
-  $("#vr-history").textContent = `历史战绩:${savedNames.p1} ${versusRec.p1} 胜 · ${savedNames.p2} ${versusRec.p2} 胜`;
+  $("#vr-history").textContent = `历史战绩:${roster.map(p => `${p.name} ${versusRec[p.name] || 0} 胜`).join(" · ")}`;
 
   showScreen("screen-versus-result");
 }
 
 $("#btn-vr-again").addEventListener("click", () => { Sound.click(); startVersus(); });
+
+/* ════════ v1.4:花名册与荣誉榜 ════════ */
+let pickedAvatar = AVATARS[0];
+
+function updatePlayerChip() {
+  const p = me();
+  $("#player-chip").textContent = `${p.avatar} ${p.name} ▾`;
+}
+
+function renderRoster() {
+  updatePlayerChip();
+  const grid = $("#roster-grid");
+  grid.innerHTML = "";
+  roster.forEach(p => {
+    const stars = records.filter(r => r.p === p.name && r.stars).reduce((s, r) => s + r.stars, 0);
+    const wins = versusRec[p.name] || 0;
+    const rounds = records.filter(r => r.p === p.name).length;
+    const card = document.createElement("div");
+    card.className = "roster-card" + (p.id === currentPid ? " current" : "");
+    card.innerHTML = `
+      ${roster.length > 1 ? `<button class="r-del" title="移除玩家">✕</button>` : ""}
+      <div class="r-avatar">${p.avatar}</div>
+      <div class="r-name">${p.name}</div>
+      <div class="r-tag">${p.id === currentPid ? "▶ 当前探险家" : "点击上场"}</div>
+      <div class="r-tag">⭐${stars} · 🏅${rounds} 轮 · 🏆${wins}</div>`;
+    card.addEventListener("click", e => {
+      if (e.target.classList.contains("r-del")) return;
+      Sound.click();
+      currentPid = p.id;
+      save("dq_current", currentPid);
+      renderRoster();
+    });
+    card.querySelector(".r-del")?.addEventListener("click", e => {
+      e.stopPropagation();
+      openOverlay(`
+        <div class="ov-emoji">👋</div>
+        <div class="ov-title bad">移除「${p.name}」?</div>
+        <p style="margin:8px 0;font-size:14.5px">TA 的成绩记录会保留在荣誉榜,但玩家卡将删除</p>
+        <div class="ov-actions">
+          <button class="btn btn-red" id="ov-del-yes">移除</button>
+          <button class="btn btn-plain" style="color:#fff" id="ov-del-no">取消</button>
+        </div>`);
+      $("#ov-del-yes").addEventListener("click", () => {
+        Sound.click();
+        roster = roster.filter(x => x.id !== p.id);
+        if (currentPid === p.id) { currentPid = roster[0].id; save("dq_current", currentPid); }
+        save("dq_roster", roster);
+        closeOverlay();
+        renderRoster();
+      });
+      $("#ov-del-no").addEventListener("click", () => { Sound.click(); closeOverlay(); });
+    });
+    grid.appendChild(card);
+  });
+  renderAvatarPick();
+}
+
+function renderAvatarPick() {
+  const box = $("#avatar-pick");
+  box.innerHTML = "";
+  AVATARS.forEach(a => {
+    const b = document.createElement("button");
+    b.textContent = a;
+    if (a === pickedAvatar) b.classList.add("sel");
+    b.addEventListener("click", () => { Sound.click(); pickedAvatar = a; renderAvatarPick(); });
+    box.appendChild(b);
+  });
+}
+
+$("#btn-add-player").addEventListener("click", () => {
+  const name = ($("#new-player-name").value.trim() || "").slice(0, 6);
+  if (!name) return Sound.wrong();
+  if (roster.some(p => p.name === name)) { Sound.wrong(); $("#new-player-name").value = ""; return; }
+  Sound.correct();
+  roster.push({ id: Date.now(), name, avatar: pickedAvatar });
+  save("dq_roster", roster);
+  $("#new-player-name").value = "";
+  renderRoster();
+});
+
+function renderHonor() {
+  updatePlayerChip();
+  const sum = $("#honor-summary");
+  sum.innerHTML = "";
+  roster.forEach(p => {
+    const stars = records.filter(r => r.p === p.name && r.stars).reduce((s, r) => s + r.stars, 0);
+    const rounds = records.filter(r => r.p === p.name).length;
+    const wins = versusRec[p.name] || 0;
+    const card = document.createElement("div");
+    card.className = "honor-card";
+    card.innerHTML = `
+      <div class="h-ava">${p.avatar}</div>
+      <div class="h-name">${p.name}</div>
+      <div class="h-stat">累计 <b>${stars}</b> ⭐ · 完成 <b>${rounds}</b> 轮<br>对战 <b>${wins}</b> 胜</div>`;
+    sum.appendChild(card);
+  });
+  $("#honor-sub").textContent = `共 ${records.length} 条成绩 · 按时间倒序`;
+  const tl = $("#honor-timeline");
+  tl.innerHTML = "";
+  if (!records.length) {
+    tl.innerHTML = `<div class="tl-item"><span class="tl-text">还没有成绩,去闯一关吧!</span></div>`;
+    return;
+  }
+  records.forEach(r => {
+    const div = document.createElement("div");
+    div.className = "tl-item";
+    const star = r.stars ? `<span class="tl-star">${"⭐".repeat(r.stars)}</span>` : "";
+    const kindIcon = r.kind === "versus" ? "⚔️" : r.kind === "final" ? "👑" : "🏅";
+    div.innerHTML = `<span class="tl-ym">${r.ym}</span><span class="tl-ava">${r.ava || "👤"}</span>
+      <span class="tl-text"><b>${r.p}</b> ${kindIcon} ${r.label}</span>${star}`;
+    tl.appendChild(div);
+  });
+}
 
 /* ════════ 启动 ════════ */
 // 首次点击页面任意处,激活音频(浏览器规定:必须有操作才能出声)
@@ -607,20 +777,36 @@ document.addEventListener("pointerdown", function once() {
 });
 
 $("#sound-toggle").textContent = Sound.enabled ? "🔊" : "🔇";
+updatePlayerChip();
 
-/* ════════ 云同步初始化(家庭数据集:闯关进度/对战战绩) ════════ */
+/* ════════ 云同步初始化(家庭数据集:花名册/成绩/闯关进度/对战战绩) ════════ */
 CloudSync.init({
   game: "dynasty",
-  collect: () => ({ progress, versus: versusRec }),
+  collect: () => ({
+    roster,
+    records,
+    progress,
+    versus: versusRec,
+  }),
   apply: s => {
+    roster = s.roster || roster;
+    save("dq_roster", roster);
+    records.length = 0; records.push(...(s.records || [])); save("dq_records", records);
     Object.keys(progress).forEach(k => delete progress[k]);
     Object.assign(progress, s.progress || {});
     save("dq_progress", progress);
     Object.keys(versusRec).forEach(k => delete versusRec[k]);
     Object.assign(versusRec, s.versus || {});
     save("dq_versus", versusRec);
+    if (roster.length && !roster.some(p => p.id === currentPid)) {
+      currentPid = roster[0].id; save("dq_current", currentPid);
+    }
+    updatePlayerChip();
   },
   render: () => {
-    if (document.getElementById("screen-map").classList.contains("active")) renderMap();
+    const id = document.querySelector(".screen.active")?.id;
+    if (id === "screen-map") renderMap();
+    if (id === "screen-honor") renderHonor();
+    if (id === "screen-player") renderRoster();
   },
 });
